@@ -204,6 +204,41 @@ enum fusb302_txfifo_tokens {
 	FUSB302_TKN_TXOFF = 0xFE,
 };
 
+enum tcpc_cc_voltage_status {
+	TYPEC_CC_VOLT_OPEN = 0,
+	TYPEC_CC_VOLT_RA = 1,
+	TYPEC_CC_VOLT_RD = 2,
+	TYPEC_CC_VOLT_SNK_DEF = 5,
+	TYPEC_CC_VOLT_SNK_1_5 = 6,
+	TYPEC_CC_VOLT_SNK_3_0 = 7,
+};
+
+enum tcpc_cc_pull {
+	TYPEC_CC_RA = 0,
+	TYPEC_CC_RP = 1,
+	TYPEC_CC_RD = 2,
+	TYPEC_CC_OPEN = 3,
+};
+
+/* Minimum PD supply current  (mA) */
+#define PD_MIN_MA	500
+
+/* Minimum PD voltage (mV) */
+#define PD_MIN_MV	5000
+
+/* No connect voltage threshold for sources based on Rp */
+#define PD_SRC_DEF_VNC_MV        1600
+#define PD_SRC_1_5_VNC_MV        1600
+#define PD_SRC_3_0_VNC_MV        2600
+
+/* Rd voltage threshold for sources based on Rp */
+#define PD_SRC_DEF_RD_THRESH_MV  200
+#define PD_SRC_1_5_RD_THRESH_MV  400
+#define PD_SRC_3_0_RD_THRESH_MV  800
+
+/* Voltage threshold to detect connection when presenting Rd */
+#define PD_SNK_VA_MV             250
+
 //extern const struct tcpm_drv fusb302_tcpm_drv;
 
 // Less FUSB302-specific stuff
@@ -218,6 +253,14 @@ class FUSB302
     int tcpc_read(int reg);
     void pd_reset();
     void flush_rx_fifo();
+    void flush_tx_fifo();
+    int convert_bc_lvl(int bc_lvl);
+    void detect_cc_pin_source_manual(int *cc1_lvl, int *cc2_lvl);
+    int measure_cc_pin_source(int cc_measure);
+    void detect_cc_pin_sink(int *cc1, int *cc2);
+    int tcpm_init();
+    int tcpm_set_polarity(int polarity);
+    int tcpm_set_vconn(int enable);
   private:
     //struct fusb302_chip_state state;
 };
