@@ -4,8 +4,8 @@
   Released under an MIT license. See LICENSE.md. 
 */
 
-#ifndef FUSB302B_h
-#define FUSB302B_h
+#ifndef FUSB302_h
+#define FUSB302_h
 
 #include "Arduino.h"
 
@@ -17,7 +17,7 @@
 
 /* I2C slave address varies by part number */
 /* FUSB302BUCX / FUSB302BMPX */
-#define FUSB302_I2C_SLAVE_ADDR 0x44
+#define FUSB302_I2C_SLAVE_ADDR 0x22 // 7-bit address for Arduino
 /* FUSB302B01MPX */
 #define FUSB302_I2C_SLAVE_ADDR_B01 0x46
 /* FUSB302B10MPX */
@@ -204,20 +204,22 @@ enum fusb302_txfifo_tokens {
 	FUSB302_TKN_TXOFF = 0xFE,
 };
 
-extern const struct tcpm_drv fusb302_tcpm_drv;
+//extern const struct tcpm_drv fusb302_tcpm_drv;
 
 // Less FUSB302-specific stuff
-int tcpc_write(int port, int reg, int val);
-int tcpc_read(int port, int reg, int *val);
+//int tcpc_write(int port, int reg, int val);
+//int tcpc_read(int port, int reg, int *val);
 
-class USB_C
+class FUSB302
 {
   public:
-    USB_C();
-    int tcpc_write(int port, int reg, int val);
-    int tcpc_read(int port, int reg, int *val);
+    FUSB302();
+    int tcpc_write(int reg, int val);
+    int tcpc_read(int reg);
+    void pd_reset();
+    void flush_rx_fifo();
   private:
-    int _pin;
+    //struct fusb302_chip_state state;
 };
 
 #endif
