@@ -8,6 +8,8 @@
 #define FUSB302_h
 
 #include "Arduino.h"
+#include <Wire.h>
+#include "USBC.h"
 
 #define uint32_t unsigned int
 
@@ -19,11 +21,11 @@
 /* FUSB302BUCX / FUSB302BMPX */
 #define FUSB302_I2C_SLAVE_ADDR 0x22 // 7-bit address for Arduino
 /* FUSB302B01MPX */
-#define FUSB302_I2C_SLAVE_ADDR_B01 0x46
+#define FUSB302_I2C_SLAVE_ADDR_B01 0x23
 /* FUSB302B10MPX */
-#define FUSB302_I2C_SLAVE_ADDR_B10 0x48
+#define FUSB302_I2C_SLAVE_ADDR_B10 0x24
 /* FUSB302B11MPX */
-#define FUSB302_I2C_SLAVE_ADDR_B11 0x4A
+#define FUSB302_I2C_SLAVE_ADDR_B11 0x25
 
 /* Default retry count for transmitting */
 #define PD_RETRY_COUNT		3
@@ -204,22 +206,6 @@ enum fusb302_txfifo_tokens {
 	FUSB302_TKN_TXOFF = 0xFE,
 };
 
-enum tcpc_cc_voltage_status {
-	TYPEC_CC_VOLT_OPEN = 0,
-	TYPEC_CC_VOLT_RA = 1,
-	TYPEC_CC_VOLT_RD = 2,
-	TYPEC_CC_VOLT_SNK_DEF = 5,
-	TYPEC_CC_VOLT_SNK_1_5 = 6,
-	TYPEC_CC_VOLT_SNK_3_0 = 7,
-};
-
-enum tcpc_cc_pull {
-	TYPEC_CC_RA = 0,
-	TYPEC_CC_RP = 1,
-	TYPEC_CC_RD = 2,
-	TYPEC_CC_OPEN = 3,
-};
-
 /* Minimum PD supply current  (mA) */
 #define PD_MIN_MA	500
 
@@ -250,8 +236,12 @@ class FUSB302
   public:
     FUSB302();
     int tcpc_write(int reg, int val);
-    int tcpc_read(int reg);
+    int tcpc_read(int reg, int *val);
+    int tcpc_xfer(int port,
+			    const uint8_t *out, int out_size,
+			    uint8_t *in, int in_size);
     void pd_reset();
+    void auto_goodcrc_enable(int enable);
     void flush_rx_fifo();
     void flush_tx_fifo();
     int convert_bc_lvl(int bc_lvl);
@@ -261,6 +251,10 @@ class FUSB302
     int tcpm_init();
     int tcpm_set_polarity(int polarity);
     int tcpm_set_vconn(int enable);
+
+    int send_message(int port, uint16_t header, const uint32_t *data,
+				 uint8_t *buf, int buf_pos);
+    int select_rp_value(int rp);
   private:
     //struct fusb302_chip_state state;
 };

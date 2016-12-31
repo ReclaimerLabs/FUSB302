@@ -11,7 +11,7 @@ void setup() {
   usbc.tcpm_init();
 
   int return_val;
-  return_val = usbc.tcpc_read(0x01);
+  usbc.tcpc_read(0x01, &return_val);
   Serial.print("FUSB302 ID = 0x");
   Serial.println(return_val, HEX);
 
@@ -31,4 +31,3 @@ void loop() {
   // put your main code here, to run repeatedly:
 
 }
-
