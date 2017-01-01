@@ -231,32 +231,52 @@ enum fusb302_txfifo_tokens {
 //int tcpc_write(int port, int reg, int val);
 //int tcpc_read(int port, int reg, int *val);
 
+struct fusb302_chip_state {
+	int cc_polarity;
+	int vconn_enabled;
+	/* 1 = pulling up (DFP) 0 = pulling down (UFP) */
+	int pulling_up;
+	int rx_enable;
+	int dfp_toggling_on;
+	int previous_pull;
+	int togdone_pullup_cc1;
+	int togdone_pullup_cc2;
+	int tx_hard_reset_req;
+	int set_cc_lock;
+	uint8_t mdac_vnc;
+	uint8_t mdac_rd;
+};
+
 class FUSB302
 {
   public:
     FUSB302();
-    int tcpc_write(int reg, int val);
-    int tcpc_read(int reg, int *val);
-    int tcpc_xfer(int port,
-			    const uint8_t *out, int out_size,
-			    uint8_t *in, int in_size);
-    void pd_reset();
-    void auto_goodcrc_enable(int enable);
-    void flush_rx_fifo();
-    void flush_tx_fifo();
-    int convert_bc_lvl(int bc_lvl);
-    void detect_cc_pin_source_manual(int *cc1_lvl, int *cc2_lvl);
-    int measure_cc_pin_source(int cc_measure);
-    void detect_cc_pin_sink(int *cc1, int *cc2);
-    int tcpm_init();
-    int tcpm_set_polarity(int polarity);
-    int tcpm_set_vconn(int enable);
-
-    int send_message(int port, uint16_t header, const uint32_t *data,
+    int 	tcpc_write(int reg, int val);
+    int 	tcpc_read(int reg, int *val);
+    int 	tcpc_xfer(const uint8_t *out, 
+    			int out_size, uint8_t *in, 
+    			int in_size, int flags);
+    void 	pd_reset();
+    void 	auto_goodcrc_enable(int enable);
+    void 	flush_rx_fifo();
+    void 	flush_tx_fifo();
+    int 	convert_bc_lvl(int bc_lvl);
+    void 	detect_cc_pin_source_manual(int *cc1_lvl, int *cc2_lvl);
+    int 	measure_cc_pin_source(int cc_measure);
+    void 	detect_cc_pin_sink(int *cc1, int *cc2);
+    int 	init();
+    int 	set_polarity(int polarity);
+    int 	set_vconn(int enable);
+    int 	set_msg_header(int power_role, int data_role);
+    int 	set_rx_enable(int enable);
+    int 	get_message(uint32_t *payload, int *head);
+    int 	send_message(int port, uint16_t header, const uint32_t *data,
 				 uint8_t *buf, int buf_pos);
-    int select_rp_value(int rp);
+    int 	select_rp_value(int rp);
+    int 	get_cc(int *cc1, int *cc2);
+    int 	set_cc(int pull);
   private:
-    //struct fusb302_chip_state state;
+    struct fusb302_chip_state state;
 };
 
 #endif

@@ -6,22 +6,6 @@
 
 #include "FUSB302.h"
 
-struct fusb302_chip_state {
-	int cc_polarity;
-	int vconn_enabled;
-	/* 1 = pulling up (DFP) 0 = pulling down (UFP) */
-	int pulling_up;
-	int rx_enable;
-	int dfp_toggling_on;
-	int previous_pull;
-	int togdone_pullup_cc1;
-	int togdone_pullup_cc2;
-	int tx_hard_reset_req;
-	int set_cc_lock;
-	uint8_t mdac_vnc;
-	uint8_t mdac_rd;
-} state;
-
 FUSB302::FUSB302()
 {
 	Wire.begin();
@@ -246,7 +230,7 @@ void FUSB302::detect_cc_pin_sink(int *cc1, int *cc2)
 	this->tcpc_write(TCPC_REG_SWITCHES0, reg);
 }
 
-int FUSB302::tcpm_init()
+int FUSB302::init()
 {
 	int reg;
 
@@ -303,8 +287,8 @@ int FUSB302::tcpm_init()
 	this->tcpc_write(TCPC_REG_CONTROL0, reg);
 
 	/* Set VCONN switch defaults */
-	this->tcpm_set_polarity(0);
-	this->tcpm_set_vconn(0);
+	this->set_polarity(0);
+	this->set_vconn(0);
 
 	/* Turn on the power! */
 	/* TODO: Reduce power consumption */
@@ -320,7 +304,7 @@ int FUSB302::tcpm_init()
  *
  * @return 0 or error
  */
-int FUSB302::tcpm_set_polarity(int polarity)
+int FUSB302::set_polarity(int polarity)
 {
 	/* Port polarity : 0 => CC1 is CC line, 1 => CC2 is CC line */
 	int reg;
@@ -371,15 +355,15 @@ int FUSB302::tcpm_set_polarity(int polarity)
 	return 0;
 }
 
-int FUSB302::tcpm_set_vconn(int enable)
+int FUSB302::set_vconn(int enable)
 {
 	/*
 	 * FUSB302 does not have dedicated VCONN Enable switch.
 	 * We'll get through this by disabling both of the
 	 * VCONN - CC* switches to disable, and enabling the
 	 * saved polarity when enabling.
-	 * Therefore at startup, tcpm_set_polarity should be called first,
-	 * or else live with the default put into tcpm_init.
+	 * Therefore at startup, set_polarity should be called first,
+	 * or else live with the default put into init.
 	 */
 	int reg;
 
@@ -388,7 +372,7 @@ int FUSB302::tcpm_set_vconn(int enable)
 
 	if (enable) {
 		/* set to saved polarity */
-		tcpm_set_polarity(state.cc_polarity);
+		set_polarity(state.cc_polarity);
 	} else {
 
 		this->tcpc_read(TCPC_REG_SWITCHES0, &reg);
@@ -401,6 +385,134 @@ int FUSB302::tcpm_set_vconn(int enable)
 	}
 
 	return 0;
+}
+
+int FUSB302::set_msg_header(int power_role, int data_role)
+{
+	int reg;
+
+	this->tcpc_read(TCPC_REG_SWITCHES1, &reg);
+
+	reg &= ~TCPC_REG_SWITCHES1_POWERROLE;
+	reg &= ~TCPC_REG_SWITCHES1_DATAROLE;
+
+	if (power_role)
+		reg |= TCPC_REG_SWITCHES1_POWERROLE;
+	if (data_role)
+		reg |= TCPC_REG_SWITCHES1_DATAROLE;
+
+	this->tcpc_write(TCPC_REG_SWITCHES1, reg);
+
+	return 0;
+}
+
+int FUSB302::set_rx_enable(int enable)
+{
+	int reg;
+
+	state.rx_enable = enable;
+
+	/* Get current switch state */
+	this->tcpc_read(TCPC_REG_SWITCHES0, &reg);
+
+	/* Clear CC1/CC2 measure bits */
+	reg &= ~TCPC_REG_SWITCHES0_MEAS_CC1;
+	reg &= ~TCPC_REG_SWITCHES0_MEAS_CC2;
+
+	if (enable) {
+		switch (state.cc_polarity) {
+		/* if CC polarity hasnt been determined, can't enable */
+		case -1:
+			return EC_ERROR_UNKNOWN;
+		case 0:
+			reg |= TCPC_REG_SWITCHES0_MEAS_CC1;
+			break;
+		case 1:
+			reg |= TCPC_REG_SWITCHES0_MEAS_CC2;
+			break;
+		default:
+			/* "shouldn't get here" */
+			return EC_ERROR_UNKNOWN;
+		}
+		this->tcpc_write(TCPC_REG_SWITCHES0, reg);
+
+		/* flush rx fifo in case messages have been coming our way */
+		this->flush_rx_fifo();
+
+
+	} else {
+		/*
+		 * bit of a hack here.
+		 * when this function is called to disable rx (enable=0)
+		 * using it as an indication of detach (gulp!)
+		 * to reset our knowledge of where
+		 * the toggle state machine landed.
+		 */
+		state.togdone_pullup_cc1 = 0;
+		state.togdone_pullup_cc2 = 0;
+
+		this->set_cc(state.previous_pull);
+
+		this->tcpc_write(TCPC_REG_SWITCHES0, reg);
+	}
+
+	this->auto_goodcrc_enable(enable);
+
+	return 0;
+}
+
+int FUSB302::get_message(uint32_t *payload, int *head)
+{
+	/*
+	 * this is the buffer that will get the burst-read data
+	 * from the fusb302.
+	 *
+	 * it's re-used in a couple different spots, the worst of which
+	 * is the PD packet (not header) and CRC.
+	 * maximum size necessary = 28 + 4 = 32
+	 */
+	uint8_t buf[32];
+	int rv = 0;
+	int len;
+
+	/* NOTE: Assuming enough memory has been allocated for payload. */
+
+	/*
+	 * PART 1 OF BURST READ: Write in register address.
+	 * Issue a START, no STOP.
+	 */
+	//tcpc_lock(port, 1);
+	buf[0] = TCPC_REG_FIFOS;
+	rv |= this->tcpc_xfer(buf, 1, 0, 0, I2C_XFER_START);
+
+	/*
+	 * PART 2 OF BURST READ: Read up to the header.
+	 * Issue a repeated START, no STOP.
+	 * only grab three bytes so we can get the header
+	 * and determine how many more bytes we need to read.
+	 */
+	rv |= this->tcpc_xfer(0, 0, buf, 3, I2C_XFER_START);
+
+	/* Grab the header */
+	*head = (buf[1] & 0xFF);
+	*head |= ((buf[2] << 8) & 0xFF00);
+
+	/* figure out packet length, subtract header bytes */
+	len = get_num_bytes(*head) - 2;
+
+	/*
+	 * PART 3 OF BURST READ: Read everything else.
+	 * No START, but do issue a STOP at the end.
+	 * add 4 to len to read CRC out
+	 */
+	rv |= this->tcpc_xfer(0, 0, buf, len+4, I2C_XFER_STOP);
+
+	//tcpc_lock(port, 0);
+
+	/* return the data */
+	memcpy(payload, buf, len);
+
+	return rv;
 }
 
 int FUSB302::send_message(int port, uint16_t header, const uint32_t *data,
@@ -450,7 +562,7 @@ int FUSB302::send_message(int port, uint16_t header, const uint32_t *data,
 	buf[buf_pos++] = FUSB302_TKN_TXON;
 
 	/* burst write for speed! */
-	rv = tcpc_xfer(port, buf, buf_pos, 0, 0);
+	rv = this->tcpc_xfer(buf, buf_pos, 0, 0, I2C_XFER_SINGLE);
 
 	return rv;
 }
@@ -496,6 +608,117 @@ int FUSB302::select_rp_value(int rp) {
 	return tcpc_write(TCPC_REG_CONTROL0, reg);
 }
 
+int FUSB302::get_cc(int *cc1, int *cc2)
+{
+	/*
+	 * can't measure while doing DFP toggling -
+	 * FUSB302 takes control of the switches.
+	 * During this time, tell software that CCs are open -
+	 * at least until we get the TOGDONE interrupt...
+	 * which signals that the hardware found something.
+	 */
+	if (state.dfp_toggling_on) {
+		*cc1 = TYPEC_CC_VOLT_OPEN;
+		*cc2 = TYPEC_CC_VOLT_OPEN;
+		return 0;
+	}
+
+	if (state.pulling_up) {
+		/* Source mode? */
+		this->detect_cc_pin_source_manual(cc1, cc2);
+	} else {
+		/* Sink mode? */
+		this->detect_cc_pin_sink(cc1, cc2);
+	}
+
+	return 0;
+}
+
+int FUSB302::set_cc(int pull)
+{
+	int reg;
+
+	/*
+	 * Ensure we aren't in the process of changing CC from the alert
+	 * handler, then cancel any pending toggle-triggered CC change.
+	 */
+	//mutex_lock(&state.set_cc_lock);
+	state.dfp_toggling_on = 0;
+	//mutex_unlock(&state.set_cc_lock);
+
+	state.previous_pull = pull;
+
+	/* NOTE: FUSB302 toggles a single pull-up between CC1 and CC2 */
+	/* NOTE: FUSB302 Does not support Ra. */
+	switch (pull) {
+		case TYPEC_CC_RP:
+			/* enable the pull-up we know to be necessary */
+			tcpc_read(TCPC_REG_SWITCHES0, &reg);
+
+			reg &= ~(TCPC_REG_SWITCHES0_CC2_PU_EN |
+				 TCPC_REG_SWITCHES0_CC1_PU_EN |
+				 TCPC_REG_SWITCHES0_CC1_PD_EN |
+				 TCPC_REG_SWITCHES0_CC2_PD_EN |
+				 TCPC_REG_SWITCHES0_VCONN_CC1 |
+				 TCPC_REG_SWITCHES0_VCONN_CC2);
+
+			reg |= TCPC_REG_SWITCHES0_CC1_PU_EN |
+				TCPC_REG_SWITCHES0_CC2_PU_EN;
+
+			if (state.vconn_enabled)
+				reg |= state.togdone_pullup_cc1 ?
+				       TCPC_REG_SWITCHES0_VCONN_CC2 :
+				       TCPC_REG_SWITCHES0_VCONN_CC1;
+
+			tcpc_write(TCPC_REG_SWITCHES0, reg);
+
+			state.pulling_up = 1;
+			state.dfp_toggling_on = 0;
+			break;
+		case TYPEC_CC_RD:
+			/* Enable UFP Mode */
+
+			/* turn off toggle */
+			tcpc_read(TCPC_REG_CONTROL2, &reg);
+			reg &= ~TCPC_REG_CONTROL2_TOGGLE;
+			tcpc_write(TCPC_REG_CONTROL2, reg);
+
+			/* enable pull-downs, disable pullups */
+			tcpc_read(TCPC_REG_SWITCHES0, &reg);
+
+			reg &= ~(TCPC_REG_SWITCHES0_CC2_PU_EN);
+			reg &= ~(TCPC_REG_SWITCHES0_CC1_PU_EN);
+			reg |= (TCPC_REG_SWITCHES0_CC1_PD_EN);
+			reg |= (TCPC_REG_SWITCHES0_CC2_PD_EN);
+			tcpc_write(TCPC_REG_SWITCHES0, reg);
+
+			state.pulling_up = 0;
+			state.dfp_toggling_on = 0;
+			break;
+		case TYPEC_CC_OPEN:
+			/* Disable toggling */
+			tcpc_read(TCPC_REG_CONTROL2, &reg);
+			reg &= ~TCPC_REG_CONTROL2_TOGGLE;
+			tcpc_write(TCPC_REG_CONTROL2, reg);
+
+			/* Ensure manual switches are opened */
+			tcpc_read(TCPC_REG_SWITCHES0, &reg);
+			reg &= ~TCPC_REG_SWITCHES0_CC1_PU_EN;
+			reg &= ~TCPC_REG_SWITCHES0_CC2_PU_EN;
+			reg &= ~TCPC_REG_SWITCHES0_CC1_PD_EN;
+			reg &= ~TCPC_REG_SWITCHES0_CC2_PD_EN;
+			tcpc_write(TCPC_REG_SWITCHES0, reg);
+
+			state.pulling_up = 0;
+			state.dfp_toggling_on = 0;
+			break;
+		default:
+			/* Unsupported... */
+			return EC_ERROR_UNIMPLEMENTED;
+	}
+	return 0;
+}
+
 int FUSB302::tcpc_write(int reg, int val) {
 	Wire.beginTransmission(FUSB302_I2C_SLAVE_ADDR);
 	Wire.write(reg & 0xFF);
@@ -515,9 +738,8 @@ int FUSB302::tcpc_read(int reg, int *val) {
     return 0;
 }
 
-int FUSB302::tcpc_xfer(int port,
-			    const uint8_t *out, int out_size,
-			    uint8_t *in, int in_size) {
+int FUSB302::tcpc_xfer(const uint8_t *out, int out_size,
+			    uint8_t *in, int in_size, int flags) {
 	Wire.beginTransmission(FUSB302_I2C_SLAVE_ADDR);
 	for (; out_size>0; out_size--) {
 		Wire.write(*out);
@@ -525,12 +747,12 @@ int FUSB302::tcpc_xfer(int port,
 	}
 	if (in_size) {
 		Wire.endTransmission(false);
-		Wire.requestFrom(FUSB302_I2C_SLAVE_ADDR, in_size, true);
+		Wire.requestFrom(FUSB302_I2C_SLAVE_ADDR, in_size, (flags & I2C_XFER_STOP));
 		for (; in_size>0; in_size--) {
 			*in = Wire.read();
 			in++;
 		}
 	} else {
-		Wire.endTransmission(true);
+		Wire.endTransmission(flags & I2C_XFER_STOP);
 	}
 }

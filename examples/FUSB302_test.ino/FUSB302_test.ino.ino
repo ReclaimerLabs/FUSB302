@@ -8,7 +8,7 @@ void setup() {
   Serial.println("Welcome to USB-C!");
   digitalWrite(13, HIGH);
 
-  usbc.tcpm_init();
+  usbc.init();
 
   int return_val;
   usbc.tcpc_read(0x01, &return_val);
