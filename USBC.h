@@ -35,6 +35,17 @@ enum tcpc_rp_value {
 	TYPEC_RP_RESERVED = 3,
 };
 
+enum tcpm_transmit_type {
+	TCPC_TX_SOP = 0,
+	TCPC_TX_SOP_PRIME = 1,
+	TCPC_TX_SOP_PRIME_PRIME = 2,
+	TCPC_TX_SOP_DEBUG_PRIME = 3,
+	TCPC_TX_SOP_DEBUG_PRIME_PRIME = 4,
+	TCPC_TX_HARD_RESET = 5,
+	TCPC_TX_CABLE_RESET = 6,
+	TCPC_TX_BIST_MODE_2 = 7
+};
+
 /* List of common error codes that can be returned */
 enum ec_error_list {
 	/* Success - no error */

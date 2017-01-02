@@ -256,25 +256,30 @@ class FUSB302
     int 	tcpc_xfer(const uint8_t *out, 
     			int out_size, uint8_t *in, 
     			int in_size, int flags);
-    void 	pd_reset();
+    void 	pd_reset(void);
     void 	auto_goodcrc_enable(int enable);
-    void 	flush_rx_fifo();
-    void 	flush_tx_fifo();
+    void 	flush_rx_fifo(void);
+    void 	flush_tx_fifo(void);
     int 	convert_bc_lvl(int bc_lvl);
     void 	detect_cc_pin_source_manual(int *cc1_lvl, int *cc2_lvl);
     int 	measure_cc_pin_source(int cc_measure);
     void 	detect_cc_pin_sink(int *cc1, int *cc2);
-    int 	init();
+    int 	init(void);
     int 	set_polarity(int polarity);
     int 	set_vconn(int enable);
     int 	set_msg_header(int power_role, int data_role);
     int 	set_rx_enable(int enable);
     int 	get_message(uint32_t *payload, int *head);
-    int 	send_message(int port, uint16_t header, const uint32_t *data,
+    int 	send_message(uint16_t header, const uint32_t *data,
 				 uint8_t *buf, int buf_pos);
+    int 	transmit(enum tcpm_transmit_type type,
+				 uint16_t header, const uint32_t *data);
     int 	select_rp_value(int rp);
+    int 	get_vbus_level(void);
     int 	get_cc(int *cc1, int *cc2);
     int 	set_cc(int pull);
+    void 	set_bist_test_data(void);
+    //fusb302_tcpc_alert
   private:
     struct fusb302_chip_state state;
 };

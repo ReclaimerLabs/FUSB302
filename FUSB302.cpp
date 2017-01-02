@@ -515,7 +515,7 @@ int FUSB302::get_message(uint32_t *payload, int *head)
 	return rv;
 }
 
-int FUSB302::send_message(int port, uint16_t header, const uint32_t *data,
+int FUSB302::send_message(uint16_t header, const uint32_t *data,
 				 uint8_t *buf, int buf_pos)
 {
 	int rv;
@@ -567,6 +567,66 @@ int FUSB302::send_message(int port, uint16_t header, const uint32_t *data,
 	return rv;
 }
 
+int FUSB302::transmit(enum tcpm_transmit_type type,
+				 uint16_t header, const uint32_t *data)
+{
+	/*
+	 * this is the buffer that will be burst-written into the fusb302
+	 * maximum size necessary =
+	 * 1: FIFO register address
+	 * 4: SOP* tokens
+	 * 1: Token that signifies "next X bytes are not tokens"
+	 * 30: 2 for header and up to 7*4 = 28 for rest of message
+	 * 1: "Insert CRC" Token
+	 * 1: EOP Token
+	 * 1: "Turn transmitter off" token
+	 * 1: "Star Transmission" Command
+	 * -
+	 * 40: 40 bytes worst-case
+	 */
+	uint8_t buf[40];
+	int buf_pos = 0;
+
+	int reg;
+
+	/* Flush the TXFIFO */
+	this->flush_tx_fifo();
+
+	switch (type) {
+	case TCPC_TX_SOP:
+
+		/* put register address first for of burst tcpc write */
+		buf[buf_pos++] = TCPC_REG_FIFOS;
+
+		/* Write the SOP Ordered Set into TX FIFO */
+		buf[buf_pos++] = FUSB302_TKN_SYNC1;
+		buf[buf_pos++] = FUSB302_TKN_SYNC1;
+		buf[buf_pos++] = FUSB302_TKN_SYNC1;
+		buf[buf_pos++] = FUSB302_TKN_SYNC2;
+
+		return this->send_message(header, data, buf, buf_pos);
+	case TCPC_TX_HARD_RESET:
+		state.tx_hard_reset_req = 1;
+
+		/* Simply hit the SEND_HARD_RESET bit */
+		this->tcpc_read(TCPC_REG_CONTROL3, &reg);
+		reg |= TCPC_REG_CONTROL3_SEND_HARDRESET;
+		this->tcpc_write(TCPC_REG_CONTROL3, reg);
+
+		break;
+	case TCPC_TX_BIST_MODE_2:
+		/* Simply hit the BIST_MODE2 bit */
+		this->tcpc_read(TCPC_REG_CONTROL1, &reg);
+		reg |= TCPC_REG_CONTROL1_BIST_MODE2;
+		this->tcpc_write(TCPC_REG_CONTROL1, reg);
+		break;
+	default:
+		return EC_ERROR_UNIMPLEMENTED;
+	}
+
+	return 0;
+}
+
 /**
 	 * Set the value of the CC pull-up used when we are a source.
 	 *
@@ -606,6 +666,16 @@ int FUSB302::select_rp_value(int rp) {
 	state.mdac_vnc = vnc;
 	state.mdac_rd = rd;
 	return tcpc_write(TCPC_REG_CONTROL0, reg);
+}
+
+int FUSB302::get_vbus_level()
+{
+	int reg;
+
+	/* Read status register */
+	this->tcpc_read(TCPC_REG_STATUS0, &reg);
+
+	return (reg & TCPC_REG_STATUS0_VBUSOK) ? 1 : 0;
 }
 
 int FUSB302::get_cc(int *cc1, int *cc2)
@@ -717,6 +787,20 @@ int FUSB302::set_cc(int pull)
 			return EC_ERROR_UNIMPLEMENTED;
 	}
 	return 0;
+}
+
+void FUSB302::set_bist_test_data()
+{
+	int reg;
+
+	/* Read control3 register */
+	this->tcpc_read(TCPC_REG_CONTROL3, &reg);
+
+	/* Set the BIST_TMODE bit (Clears on Hard Reset) */
+	reg |= TCPC_REG_CONTROL3_BIST_TMODE;
+
+	/* Write the updated value */
+	this->tcpc_write(TCPC_REG_CONTROL3, reg);
 }
 
 int FUSB302::tcpc_write(int reg, int val) {
