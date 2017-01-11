@@ -231,10 +231,11 @@ enum fusb302_txfifo_tokens {
 //int tcpc_write(int port, int reg, int val);
 //int tcpc_read(int port, int reg, int *val);
 
+/*
 struct fusb302_chip_state {
     int cc_polarity;
     int vconn_enabled;
-    /* 1 = pulling up (DFP) 0 = pulling down (UFP) */
+    // 1 = pulling up (DFP) 0 = pulling down (UFP)
     int pulling_up;
     int rx_enable;
     int dfp_toggling_on;
@@ -246,44 +247,63 @@ struct fusb302_chip_state {
     uint8_t mdac_vnc;
     uint8_t mdac_rd;
 };
+*/
 
 class FUSB302
 {
   public:
     FUSB302();
-    int     init(void);
 
-    void    pd_reset(void);
-    void    auto_goodcrc_enable(int enable);
-    int     convert_bc_lvl(int bc_lvl);
+    /* Common methods for TCPM implementations */
+    int     init(void);
+    int     get_cc(int *cc1, int *cc2);
+    int     get_vbus_level(void);
+    int     select_rp_value(int rp);
+    int     set_cc(int pull);
     int     set_polarity(int polarity);
     int     set_vconn(int enable);
-    int     select_rp_value(int rp);
-    int     get_vbus_level(void);
-    int     get_cc(int *cc1, int *cc2);
-    int     set_cc(int pull);
-    void    detect_cc_pin_source_manual(int *cc1_lvl, int *cc2_lvl);
-    int     measure_cc_pin_source(int cc_measure);
-    void    detect_cc_pin_sink(int *cc1, int *cc2);
-
     int     set_msg_header(int power_role, int data_role);
     int     set_rx_enable(int enable);
     int     get_message(uint32_t *payload, int *head);
-    int     send_message(uint16_t header, const uint32_t *data,
-                 uint8_t *buf, int buf_pos);
     int     transmit(enum tcpm_transmit_type type,
                  uint16_t header, const uint32_t *data);
+    //int   alert(void);
+
+    /* Other methods made public for convenience */
+    void    pd_reset(void);
+    void    auto_goodcrc_enable(int enable);
+    int     convert_bc_lvl(int bc_lvl);
+    void    detect_cc_pin_source_manual(int *cc1_lvl, int *cc2_lvl);
+    int     measure_cc_pin_source(int cc_measure);
+    void    detect_cc_pin_sink(int *cc1, int *cc2);
+    int     send_message(uint16_t header, const uint32_t *data,
+                 uint8_t *buf, int buf_pos);
     void    flush_rx_fifo(void);
     void    flush_tx_fifo(void);
     void    set_bist_test_data(void);
-    
+    int     get_chip_id(int *id);
+
   private:
-    struct fusb302_chip_state state;
+    //struct fusb302_chip_state state;
     int     tcpc_write(int reg, int val);
     int     tcpc_read(int reg, int *val);
     int     tcpc_xfer(const uint8_t *out, 
                 int out_size, uint8_t *in, 
                 int in_size, int flags);
+
+    int     cc_polarity;
+    int     vconn_enabled;
+    /* 1 = pulling up (DFP) 0 = pulling down (UFP) */
+    int     pulling_up;
+    int     rx_enable;
+    int     dfp_toggling_on;
+    int     previous_pull;
+    int     togdone_pullup_cc1;
+    int     togdone_pullup_cc2;
+    int     tx_hard_reset_req;
+    int     set_cc_lock;
+    uint8_t mdac_vnc;
+    uint8_t mdac_rd;
 };
 
 #endif /* FUSB302_H */

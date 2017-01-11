@@ -9,7 +9,7 @@
 FUSB302::FUSB302()
 {
     Wire.begin();
-    state.vconn_enabled = 0;
+    this->vconn_enabled = 0;
 }
 
 /* bring the FUSB302 out of reset after Hard Reset signaling */
@@ -57,7 +57,7 @@ int FUSB302::convert_bc_lvl(int bc_lvl)
     /* assume OPEN unless one of the following conditions is true... */
     int ret = TYPEC_CC_VOLT_OPEN;
 
-    if (state.pulling_up) {
+    if (this->pulling_up) {
         if (bc_lvl == 0x00)
             ret = TYPEC_CC_VOLT_RA;
         else if (bc_lvl < 0x3)
@@ -98,7 +98,7 @@ int FUSB302::measure_cc_pin_source(int cc_measure)
     this->tcpc_write(TCPC_REG_SWITCHES0, reg);
 
     /* Set MDAC for Open vs Rd/Ra comparison */
-  this->tcpc_write(TCPC_REG_MEASURE, state.mdac_vnc);
+  this->tcpc_write(TCPC_REG_MEASURE, this->mdac_vnc);
 
     /* Wait on measurement */
     delayMicroseconds(250);
@@ -112,7 +112,7 @@ int FUSB302::measure_cc_pin_source(int cc_measure)
     /* CC level is below the 'no connect' threshold (vOpen) */
     if ((reg & TCPC_REG_STATUS0_COMP) == 0) {
         /* Set MDAC for Rd vs Ra comparison */
-        this->tcpc_write(TCPC_REG_MEASURE, state.mdac_rd);
+        this->tcpc_write(TCPC_REG_MEASURE, this->mdac_rd);
 
         /* Wait on measurement */
         delayMicroseconds(250);
@@ -136,9 +136,9 @@ void FUSB302::detect_cc_pin_source_manual(int *cc1_lvl, int *cc2_lvl)
     int cc1_measure = TCPC_REG_SWITCHES0_MEAS_CC1;
     int cc2_measure = TCPC_REG_SWITCHES0_MEAS_CC2;
 
-    if (state.vconn_enabled) {
+    if (this->vconn_enabled) {
         /* If VCONN enabled, measure cc_pin that matches polarity */
-        if (state.cc_polarity)
+        if (this->cc_polarity)
             *cc2_lvl = this->measure_cc_pin_source(cc2_measure);
         else
             *cc1_lvl = this->measure_cc_pin_source(cc1_measure);
@@ -230,18 +230,18 @@ void FUSB302::detect_cc_pin_sink(int *cc1, int *cc2)
     this->tcpc_write(TCPC_REG_SWITCHES0, reg);
 }
 
-int FUSB302::init()
+int FUSB302::init(void)
 {
     int reg;
 
     /* set default */
-    state.cc_polarity = -1;
+    this->cc_polarity = -1;
 
-    state.previous_pull = TYPEC_CC_RD;
+    this->previous_pull = TYPEC_CC_RD;
     /* set the voltage threshold for no connect detection (vOpen) */
-    state.mdac_vnc = TCPC_REG_MEASURE_MDAC_MV(PD_SRC_DEF_VNC_MV);
+    this->mdac_vnc = TCPC_REG_MEASURE_MDAC_MV(PD_SRC_DEF_VNC_MV);
     /* set the voltage threshold for Rd vs Ra detection */
-    state.mdac_rd = TCPC_REG_MEASURE_MDAC_MV(PD_SRC_DEF_RD_THRESH_MV);
+    this->mdac_rd = TCPC_REG_MEASURE_MDAC_MV(PD_SRC_DEF_RD_THRESH_MV);
 
     /* all other variables assumed to default to 0 */
 
@@ -315,7 +315,7 @@ int FUSB302::set_polarity(int polarity)
     reg &= ~TCPC_REG_SWITCHES0_VCONN_CC1;
     reg &= ~TCPC_REG_SWITCHES0_VCONN_CC2;
 
-    if (state.vconn_enabled) {
+    if (this->vconn_enabled) {
         /* set VCONN switch to be non-CC line */
         if (polarity)
             reg |= TCPC_REG_SWITCHES0_VCONN_CC1;
@@ -350,7 +350,7 @@ int FUSB302::set_polarity(int polarity)
     this->tcpc_write(TCPC_REG_SWITCHES1, reg);
 
     /* Save the polarity for later */
-    state.cc_polarity = polarity;
+    this->cc_polarity = polarity;
 
     return 0;
 }
@@ -368,11 +368,11 @@ int FUSB302::set_vconn(int enable)
     int reg;
 
     /* save enable state for later use */
-    state.vconn_enabled = enable;
+    this->vconn_enabled = enable;
 
     if (enable) {
         /* set to saved polarity */
-        set_polarity(state.cc_polarity);
+        set_polarity(this->cc_polarity);
     } else {
 
         this->tcpc_read(TCPC_REG_SWITCHES0, &reg);
@@ -410,7 +410,7 @@ int FUSB302::set_rx_enable(int enable)
 {
     int reg;
 
-    state.rx_enable = enable;
+    this->rx_enable = enable;
 
     /* Get current switch state */
     this->tcpc_read(TCPC_REG_SWITCHES0, &reg);
@@ -420,7 +420,7 @@ int FUSB302::set_rx_enable(int enable)
     reg &= ~TCPC_REG_SWITCHES0_MEAS_CC2;
 
     if (enable) {
-        switch (state.cc_polarity) {
+        switch (this->cc_polarity) {
         /* if CC polarity hasnt been determined, can't enable */
         case -1:
             return EC_ERROR_UNKNOWN;
@@ -448,10 +448,10 @@ int FUSB302::set_rx_enable(int enable)
          * to reset our knowledge of where
          * the toggle state machine landed.
          */
-        state.togdone_pullup_cc1 = 0;
-        state.togdone_pullup_cc2 = 0;
+        this->togdone_pullup_cc1 = 0;
+        this->togdone_pullup_cc2 = 0;
 
-        this->set_cc(state.previous_pull);
+        this->set_cc(this->previous_pull);
 
         this->tcpc_write(TCPC_REG_SWITCHES0, reg);
     }
@@ -606,7 +606,7 @@ int FUSB302::transmit(enum tcpm_transmit_type type,
 
         return this->send_message(header, data, buf, buf_pos);
     case TCPC_TX_HARD_RESET:
-        state.tx_hard_reset_req = 1;
+        this->tx_hard_reset_req = 1;
 
         /* Simply hit the SEND_HARD_RESET bit */
         this->tcpc_read(TCPC_REG_CONTROL3, &reg);
@@ -663,8 +663,8 @@ int FUSB302::select_rp_value(int rp) {
         vnc = TCPC_REG_MEASURE_MDAC_MV(PD_SRC_DEF_VNC_MV);
         rd = TCPC_REG_MEASURE_MDAC_MV(PD_SRC_DEF_RD_THRESH_MV);
     }
-    state.mdac_vnc = vnc;
-    state.mdac_rd = rd;
+    this->mdac_vnc = vnc;
+    this->mdac_rd = rd;
     return tcpc_write(TCPC_REG_CONTROL0, reg);
 }
 
@@ -687,13 +687,13 @@ int FUSB302::get_cc(int *cc1, int *cc2)
      * at least until we get the TOGDONE interrupt...
      * which signals that the hardware found something.
      */
-    if (state.dfp_toggling_on) {
+    if (this->dfp_toggling_on) {
         *cc1 = TYPEC_CC_VOLT_OPEN;
         *cc2 = TYPEC_CC_VOLT_OPEN;
         return 0;
     }
 
-    if (state.pulling_up) {
+    if (this->pulling_up) {
         /* Source mode? */
         this->detect_cc_pin_source_manual(cc1, cc2);
     } else {
@@ -712,11 +712,11 @@ int FUSB302::set_cc(int pull)
      * Ensure we aren't in the process of changing CC from the alert
      * handler, then cancel any pending toggle-triggered CC change.
      */
-    //mutex_lock(&state.set_cc_lock);
-    state.dfp_toggling_on = 0;
-    //mutex_unlock(&state.set_cc_lock);
+    //mutex_lock(&this->set_cc_lock);
+    this->dfp_toggling_on = 0;
+    //mutex_unlock(&this->set_cc_lock);
 
-    state.previous_pull = pull;
+    this->previous_pull = pull;
 
     /* NOTE: FUSB302 toggles a single pull-up between CC1 and CC2 */
     /* NOTE: FUSB302 Does not support Ra. */
@@ -735,15 +735,15 @@ int FUSB302::set_cc(int pull)
             reg |= TCPC_REG_SWITCHES0_CC1_PU_EN |
                 TCPC_REG_SWITCHES0_CC2_PU_EN;
 
-            if (state.vconn_enabled)
-                reg |= state.togdone_pullup_cc1 ?
+            if (this->vconn_enabled)
+                reg |= this->togdone_pullup_cc1 ?
                        TCPC_REG_SWITCHES0_VCONN_CC2 :
                        TCPC_REG_SWITCHES0_VCONN_CC1;
 
             tcpc_write(TCPC_REG_SWITCHES0, reg);
 
-            state.pulling_up = 1;
-            state.dfp_toggling_on = 0;
+            this->pulling_up = 1;
+            this->dfp_toggling_on = 0;
             break;
         case TYPEC_CC_RD:
             /* Enable UFP Mode */
@@ -762,8 +762,8 @@ int FUSB302::set_cc(int pull)
             reg |= (TCPC_REG_SWITCHES0_CC2_PD_EN);
             tcpc_write(TCPC_REG_SWITCHES0, reg);
 
-            state.pulling_up = 0;
-            state.dfp_toggling_on = 0;
+            this->pulling_up = 0;
+            this->dfp_toggling_on = 0;
             break;
         case TYPEC_CC_OPEN:
             /* Disable toggling */
@@ -779,8 +779,8 @@ int FUSB302::set_cc(int pull)
             reg &= ~TCPC_REG_SWITCHES0_CC2_PD_EN;
             tcpc_write(TCPC_REG_SWITCHES0, reg);
 
-            state.pulling_up = 0;
-            state.dfp_toggling_on = 0;
+            this->pulling_up = 0;
+            this->dfp_toggling_on = 0;
             break;
         default:
             /* Unsupported... */
@@ -801,6 +801,12 @@ void FUSB302::set_bist_test_data()
 
     /* Write the updated value */
     this->tcpc_write(TCPC_REG_CONTROL3, reg);
+}
+
+int FUSB302::get_chip_id(int *id) {
+    int return_val;
+    return_val = this->tcpc_read(TCPC_REG_DEVICE_ID, id);
+    return return_val;
 }
 
 int FUSB302::tcpc_write(int reg, int val) {
@@ -829,6 +835,7 @@ int FUSB302::tcpc_xfer(const uint8_t *out, int out_size,
         Wire.write(*out);
         out++;
     }
+
     if (in_size) {
         Wire.endTransmission(false);
         Wire.requestFrom(FUSB302_I2C_SLAVE_ADDR, in_size, (flags & I2C_XFER_STOP));
