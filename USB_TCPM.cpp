@@ -1,6 +1,6 @@
-#include "USBC.h"
+#include "USB_TCPM.h"
 
-int get_num_bytes(uint16_t header)
+int USB_TCPM::get_num_bytes(uint16_t header)
 {
     int rv;
 

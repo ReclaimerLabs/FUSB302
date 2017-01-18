@@ -1,11 +1,30 @@
-#ifndef USBC_H
-#define USBC_H
+#ifndef USB_TCPM_H
+#define USB_TCPM_H
 
 #include "Arduino.h"
 
 #define PD_HEADER_CNT(header)  (((header) >> 12) & 7)
 #define PD_HEADER_TYPE(header) ((header) & 0xF)
 #define PD_HEADER_ID(header)   (((header) >> 9) & 7)
+
+/* Minimum PD supply current  (mA) */
+#define PD_MIN_MA   500
+
+/* Minimum PD voltage (mV) */
+#define PD_MIN_MV   5000
+
+/* No connect voltage threshold for sources based on Rp */
+#define PD_SRC_DEF_VNC_MV        1600
+#define PD_SRC_1_5_VNC_MV        1600
+#define PD_SRC_3_0_VNC_MV        2600
+
+/* Rd voltage threshold for sources based on Rp */
+#define PD_SRC_DEF_RD_THRESH_MV  200
+#define PD_SRC_1_5_RD_THRESH_MV  400
+#define PD_SRC_3_0_RD_THRESH_MV  800
+
+/* Voltage threshold to detect connection when presenting Rd */
+#define PD_SNK_VA_MV             250
 
 /* Flags for i2c_xfer() */
 #define I2C_XFER_START (1 << 0)  /* Start smbus session from idle state */
@@ -89,6 +108,27 @@ enum ec_error_list {
     EC_ERROR_INTERNAL_LAST =  0x1FFFF
 };
 
-int get_num_bytes(uint16_t header);
+class USB_TCPM
+{
+  public:
+    USB_TCPM() {}
 
-#endif /* USBC_H */
+    // Common methods for TCPM implementations
+    virtual int     init(void) =0;
+    virtual int     get_cc(int *cc1, int *cc2) =0;
+    virtual int     get_vbus_level(void) =0;
+    virtual int     select_rp_value(int rp) =0;
+    virtual int     set_cc(int pull) =0;
+    virtual int     set_polarity(int polarity) =0;
+    virtual int     set_vconn(int enable) =0;
+    virtual int     set_msg_header(int power_role, int data_role) =0;
+    virtual int     set_rx_enable(int enable) =0;
+    virtual int     get_message(uint32_t *payload, int *head) =0;
+    virtual int     transmit(enum tcpm_transmit_type type,
+                        uint16_t header, const uint32_t *data) =0;
+    //int   alert(void);
+    
+    static int      get_num_bytes(uint16_t header);
+};
+
+#endif /* USB_TCPM_H */

@@ -9,9 +9,7 @@
 
 #include "Arduino.h"
 #include <Wire.h>
-#include "USBC.h"
-
-#define uint32_t unsigned int
+#include "USB_TCPM.h"
 
 /* Chip Device ID - 302A or 302B */
 #define FUSB302_DEVID_302A 0x08
@@ -206,55 +204,12 @@ enum fusb302_txfifo_tokens {
     FUSB302_TKN_TXOFF = 0xFE,
 };
 
-/* Minimum PD supply current  (mA) */
-#define PD_MIN_MA   500
-
-/* Minimum PD voltage (mV) */
-#define PD_MIN_MV   5000
-
-/* No connect voltage threshold for sources based on Rp */
-#define PD_SRC_DEF_VNC_MV        1600
-#define PD_SRC_1_5_VNC_MV        1600
-#define PD_SRC_3_0_VNC_MV        2600
-
-/* Rd voltage threshold for sources based on Rp */
-#define PD_SRC_DEF_RD_THRESH_MV  200
-#define PD_SRC_1_5_RD_THRESH_MV  400
-#define PD_SRC_3_0_RD_THRESH_MV  800
-
-/* Voltage threshold to detect connection when presenting Rd */
-#define PD_SNK_VA_MV             250
-
-//extern const struct tcpm_drv fusb302_tcpm_drv;
-
-// Less FUSB302-specific stuff
-//int tcpc_write(int port, int reg, int val);
-//int tcpc_read(int port, int reg, int *val);
-
-/*
-struct fusb302_chip_state {
-    int cc_polarity;
-    int vconn_enabled;
-    // 1 = pulling up (DFP) 0 = pulling down (UFP)
-    int pulling_up;
-    int rx_enable;
-    int dfp_toggling_on;
-    int previous_pull;
-    int togdone_pullup_cc1;
-    int togdone_pullup_cc2;
-    int tx_hard_reset_req;
-    int set_cc_lock;
-    uint8_t mdac_vnc;
-    uint8_t mdac_rd;
-};
-*/
-
-class FUSB302
+class FUSB302 : USB_TCPM
 {
   public:
     FUSB302();
 
-    /* Common methods for TCPM implementations */
+    // Common methods for TCPM implementations
     int     init(void);
     int     get_cc(int *cc1, int *cc2);
     int     get_vbus_level(void);
@@ -269,7 +224,7 @@ class FUSB302
                  uint16_t header, const uint32_t *data);
     //int   alert(void);
 
-    /* Other methods made public for convenience */
+    // Other methods made public for convenience
     void    pd_reset(void);
     void    auto_goodcrc_enable(int enable);
     int     convert_bc_lvl(int bc_lvl);
@@ -284,7 +239,6 @@ class FUSB302
     int     get_chip_id(int *id);
 
   private:
-    //struct fusb302_chip_state state;
     int     tcpc_write(int reg, int val);
     int     tcpc_read(int reg, int *val);
     int     tcpc_xfer(const uint8_t *out, 
@@ -293,7 +247,7 @@ class FUSB302
 
     int     cc_polarity;
     int     vconn_enabled;
-    /* 1 = pulling up (DFP) 0 = pulling down (UFP) */
+    // 1 = pulling up (DFP) 0 = pulling down (UFP)
     int     pulling_up;
     int     rx_enable;
     int     dfp_toggling_on;

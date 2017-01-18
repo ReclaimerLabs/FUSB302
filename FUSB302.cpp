@@ -6,7 +6,7 @@
 
 #include "FUSB302.h"
 
-FUSB302::FUSB302()
+FUSB302::FUSB302() : USB_TCPM()
 {
     Wire.begin();
     this->vconn_enabled = 0;
@@ -498,7 +498,7 @@ int FUSB302::get_message(uint32_t *payload, int *head)
     *head |= ((buf[2] << 8) & 0xFF00);
 
     /* figure out packet length, subtract header bytes */
-    len = get_num_bytes(*head) - 2;
+    len = USB_TCPM::get_num_bytes(*head) - 2;
 
     /*
      * PART 3 OF BURST READ: Read everything else.
@@ -522,7 +522,7 @@ int FUSB302::send_message(uint16_t header, const uint32_t *data,
     int reg;
     int len;
 
-    len = get_num_bytes(header);
+    len = USB_TCPM::get_num_bytes(header);
 
     /*
      * packsym tells the TXFIFO that the next X bytes are payload,
