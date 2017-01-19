@@ -460,7 +460,12 @@ int FUSB302::set_rx_enable(int enable)
 
     return 0;
 }
-
+/*
+ * Make sure to allocate enough memory for *payload. 
+ *
+ * Maximum size is (max number of data objects + 1) * 4
+ * The extra "+1" is for the CRC32 calculation
+ */
 int FUSB302::get_message(uint32_t *payload, int *head)
 {
     /*
@@ -510,7 +515,7 @@ int FUSB302::get_message(uint32_t *payload, int *head)
     //tcpc_lock(port, 0);
 
     /* return the data */
-    memcpy(payload, buf, len);
+    memcpy(payload, buf, len+4);
 
     return rv;
 }

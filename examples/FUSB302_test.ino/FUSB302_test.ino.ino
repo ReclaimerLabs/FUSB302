@@ -29,6 +29,9 @@ void setup() {
   Serial.println("Welcome to USB-C!");
   digitalWrite(13, HIGH);
 
+  int       usb_pd_message_header;
+  uint32_t  usb_pd_message_buffer[10];
+
   usbc.init();
 
   int chip_id;
@@ -88,6 +91,23 @@ void setup() {
     default :
       Serial.println("Unknown");
       break;
+  }
+
+  if (cc1_meas > cc2_meas) {
+    usbc.set_polarity(0);
+  } else {
+    usbc.set_polarity(1);
+  }
+
+  delay(1000);
+
+  usbc.get_message(usb_pd_message_buffer, &usb_pd_message_header);
+  Serial.print("Header = 0x");
+  Serial.println(usb_pd_message_header, HEX);
+  for (int i=0; i<10; i++) {
+    Serial.print(i, DEC);
+    Serial.print(" = 0x");
+    Serial.println(usb_pd_message_buffer[i], HEX);
   }
 }
 
