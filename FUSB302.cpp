@@ -347,6 +347,9 @@ int FUSB302::set_polarity(int polarity)
     else
         reg |= TCPC_REG_SWITCHES1_TXCC1_EN;
 
+    // Enable auto GoodCRC sending
+    reg |= TCPC_REG_SWITCHES1_AUTO_GCRC;
+
     this->tcpc_write(TCPC_REG_SWITCHES1, reg);
 
     /* Save the polarity for later */
@@ -436,6 +439,10 @@ int FUSB302::set_rx_enable(int enable)
         }
         this->tcpc_write(TCPC_REG_SWITCHES0, reg);
 
+        tcpc_read(TCPC_REG_SWITCHES1, &reg);
+        reg |= TCPC_REG_SWITCHES1_AUTO_GCRC;
+        tcpc_write(TCPC_REG_SWITCHES1, reg);
+
         /* flush rx fifo in case messages have been coming our way */
         this->flush_rx_fifo();
 
@@ -454,6 +461,10 @@ int FUSB302::set_rx_enable(int enable)
         this->set_cc(this->previous_pull);
 
         this->tcpc_write(TCPC_REG_SWITCHES0, reg);
+
+        tcpc_read(TCPC_REG_SWITCHES1, &reg);
+        reg &= ~(TCPC_REG_SWITCHES1_AUTO_GCRC);
+        tcpc_write(TCPC_REG_SWITCHES1, reg);
     }
 
     this->auto_goodcrc_enable(enable);
@@ -503,7 +514,7 @@ int FUSB302::get_message(uint32_t *payload, int *head)
     *head |= ((buf[2] << 8) & 0xFF00);
 
     /* figure out packet length, subtract header bytes */
-    len = USB_TCPM::get_num_bytes(*head) - 2;
+    len = get_num_bytes(*head) - 2;
 
     /*
      * PART 3 OF BURST READ: Read everything else.
@@ -527,7 +538,7 @@ int FUSB302::send_message(uint16_t header, const uint32_t *data,
     int reg;
     int len;
 
-    len = USB_TCPM::get_num_bytes(header);
+    len = get_num_bytes(header);
 
     /*
      * packsym tells the TXFIFO that the next X bytes are payload,
@@ -567,7 +578,7 @@ int FUSB302::send_message(uint16_t header, const uint32_t *data,
     buf[buf_pos++] = FUSB302_TKN_TXON;
 
     /* burst write for speed! */
-    rv = this->tcpc_xfer(buf, buf_pos, 0, 0, I2C_XFER_SINGLE);
+    rv = tcpc_xfer(buf, buf_pos, 0, 0, I2C_XFER_SINGLE);
 
     return rv;
 }
@@ -814,6 +825,19 @@ int FUSB302::get_chip_id(int *id) {
     return return_val;
 }
 
+uint32_t FUSB302::get_interrupt_reason(void) {
+    int res;
+    uint32_t return_val;
+    this->tcpc_read(TCPC_REG_INTERRUPTA, &res);
+    return_val = ((res&0xFFl) << 16);
+    this->tcpc_read(TCPC_REG_INTERRUPTB, &res);
+    return_val |= ((res&0xFF) << 8);
+    this->tcpc_read(TCPC_REG_INTERRUPT, &res);
+    return_val |= (res&0xFF);
+
+    return return_val;
+}
+
 int FUSB302::tcpc_write(int reg, int val) {
     Wire.beginTransmission(FUSB302_I2C_SLAVE_ADDR);
     Wire.write(reg & 0xFF);
@@ -851,4 +875,12 @@ int FUSB302::tcpc_xfer(const uint8_t *out, int out_size,
     } else {
         Wire.endTransmission(flags & I2C_XFER_STOP);
     }
+}
+
+
+void FUSB302::clear_int_pin(void) {
+    int res;
+    this->tcpc_read(TCPC_REG_INTERRUPTA, &res);
+    this->tcpc_read(TCPC_REG_INTERRUPTB, &res);
+    this->tcpc_read(TCPC_REG_INTERRUPT, &res);
 }

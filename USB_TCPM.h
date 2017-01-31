@@ -31,6 +31,9 @@
 #define I2C_XFER_STOP (1 << 1)  /* Terminate smbus session with stop bit */
 #define I2C_XFER_SINGLE (I2C_XFER_START | I2C_XFER_STOP)  /* One transaction */
 
+/* Default retry count for transmitting */
+#define PD_RETRY_COUNT 3
+
 enum tcpc_cc_voltage_status {
     TYPEC_CC_VOLT_OPEN = 0,
     TYPEC_CC_VOLT_RA = 1,
@@ -63,6 +66,12 @@ enum tcpm_transmit_type {
     TCPC_TX_HARD_RESET = 5,
     TCPC_TX_CABLE_RESET = 6,
     TCPC_TX_BIST_MODE_2 = 7
+};
+
+enum tcpc_transmit_complete {
+    TCPC_TX_COMPLETE_SUCCESS =   0,
+    TCPC_TX_COMPLETE_DISCARDED = 1,
+    TCPC_TX_COMPLETE_FAILED =    2,
 };
 
 /* List of common error codes that can be returned */

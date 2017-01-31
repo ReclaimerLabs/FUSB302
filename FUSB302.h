@@ -28,6 +28,9 @@
 /* Default retry count for transmitting */
 #define PD_RETRY_COUNT      3
 
+/* Time to wait for TCPC to complete transmit */
+#define PD_T_TCPC_TX_TIMEOUT  (100*MSEC)
+
 #define TCPC_REG_DEVICE_ID  0x01
 
 #define TCPC_REG_SWITCHES0  0x02
@@ -204,7 +207,7 @@ enum fusb302_txfifo_tokens {
     FUSB302_TKN_TXOFF = 0xFE,
 };
 
-class FUSB302 : USB_TCPM
+class FUSB302 : public USB_TCPM
 {
   public:
     FUSB302();
@@ -235,15 +238,17 @@ class FUSB302 : USB_TCPM
                  uint8_t *buf, int buf_pos);
     void    flush_rx_fifo(void);
     void    flush_tx_fifo(void);
+    void    clear_int_pin(void);
     void    set_bist_test_data(void);
     int     get_chip_id(int *id);
-
-  private:
+    uint32_t get_interrupt_reason(void);
     int     tcpc_write(int reg, int val);
     int     tcpc_read(int reg, int *val);
     int     tcpc_xfer(const uint8_t *out, 
                 int out_size, uint8_t *in, 
                 int in_size, int flags);
+
+  private:
 
     int     cc_polarity;
     int     vconn_enabled;
