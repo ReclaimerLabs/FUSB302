@@ -1,7 +1,8 @@
 /*
   FUSB302.h - Library for interacting with the FUSB302B chip.
-  Created by Jason Cerundolo, December 11, 2016.
-  Released under an MIT license. See LICENSE.md. 
+  Copyright 2010 The Chromium OS Authors
+  Copyright 2017 Jason Cerundolo
+  Released under an MIT license. See LICENSE file. 
 */
 
 #ifndef FUSB302_H

@@ -1,3 +1,10 @@
+/*
+  USB_TCPM.h - Library for interacting with the FUSB302B chip.
+  Copyright 2010 The Chromium OS Authors
+  Copyright 2017 Jason Cerundolo
+  Released under an MIT license. See LICENSE file. 
+*/
+
 #ifndef USB_TCPM_H
 #define USB_TCPM_H
 
