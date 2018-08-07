@@ -1,3 +1,7 @@
+# Deprecation
+
+This library has been replaced by a new project that redesigns the library. It started with the [USB-C Explorer](https://github.com/ReclaimerLabs/USB-C-Explorer/tree/master/firmware/USB-C%20Explorer). Then that firmware was ported to [Arduino](https://github.com/graycatlabs/usb-c-arduino). This new version is much easier to port to new platforms, and so it recommended for new projects. 
+
 # Introduction
 
 This library is a port of the [**Google Chrome EC library**](https://www.chromium.org/chromium-os/ec-development). The goal is port the code to C++ and packge it as a library that can be used with Arduino, Particle, and other embedded applications. This code is very much a work in progress. Not all of it has been tested. 
